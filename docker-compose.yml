@@ -1,0 +1,67 @@
+services:
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-mqtt-datasource
+      - GF_SECURITY_ADMIN_USER=weather-wizard
+      - GF_SECURITY_ADMIN_PASSWORD=IoT4life
+    volumes:
+      - grafana:/var/lib/grafana
+
+  mosquitto:
+    image: eclipse-mosquitto
+    hostname: mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto:/etc/mosquitto
+      - /home/rico/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - app-network
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: influxdb
+    ports:
+      - "8086:8086" # Expose the InfluxDB HTTP API
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=my-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=mqtt_data
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d # Retain data for 30 days
+    volumes:
+      - influxdb-data:/var/lib/influxdb2 # Persist data
+    networks:
+      - app-network
+
+  telegraf:
+    image: telegraf:latest
+    container_name: telegraf
+    depends_on:
+      - influxdb
+    volumes:
+      - /home/rico/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    links:
+      - influxdb
+    environment:
+      - HOSTNAME=telegraf
+    networks:
+      - app-network
+
+volumes:
+  mosquitto:
+  influxdb-data:
+  grafana:
+
+networks:
+  app-network:
+    driver: bridge
